@@ -22,6 +22,8 @@ pub struct Validators {
     min_items: Option<usize>,
     #[darling(default, multiple)]
     custom: Vec<SpannedValue<String>>,
+    #[darling(default)]
+    list: bool,
 }
 
 impl Validators {
@@ -33,6 +35,13 @@ impl Validators {
         map_err: Option<TokenStream>,
     ) -> Result<TokenStream> {
         let mut codes = Vec::new();
+        let mut value = value;
+        let mut container = None;
+
+        if self.list {
+            container = Some(quote!(#value));
+            value = quote!(__item);
+        }
 
         if let Some(n) = &self.multiple_of {
             codes.push(quote! {
@@ -85,6 +94,15 @@ impl Validators {
         }
 
         let codes = codes.into_iter().map(|s| quote!(#s  #map_err ?));
-        Ok(quote!(#(#codes;)*))
+
+        if let Some(container) = container {
+            Ok(quote! {
+                for __item in #container {
+                    #(#codes;)*
+                }
+            })
+        } else {
+            Ok(quote!(#(#codes;)*))
+        }
     }
 }

@@ -259,3 +259,45 @@ pub async fn test_custom_validator() {
         }]
     );
 }
+
+#[tokio::test]
+pub async fn test_list_validator() {
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn value(&self, #[graphql(validator(maximum = "3", list))] n: Vec<i32>) -> i32 {
+            n.into_iter().sum()
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    assert_eq!(
+        schema
+            .execute("{ value(n: [1, 2, 3]) }")
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({ "value": 6 })
+    );
+
+    assert_eq!(
+        schema
+            .execute("{ value(n: [1, 2, 3, 4]) }")
+            .await
+            .into_result()
+            .unwrap_err(),
+        vec![ServerError {
+            message: r#"Failed to parse "Int": the value is 4, must be less than or equal to 3"#
+                .to_string(),
+            source: None,
+            locations: vec![Pos {
+                line: 1,
+                column: 12
+            }],
+            path: vec![PathSegment::Field("value".to_string())],
+            extensions: None
+        }]
+    );
+}
